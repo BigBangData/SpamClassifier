@@ -68,7 +68,7 @@ def get_data_if_needed(spam, ham, date):
     
     if (os.path.isdir(os.path.join('data', spam)) and get_date(spam) == date) \
     and (os.path.isdir(os.path.join('data', ham)) and get_date(ham) == date):
-        print('Data already exists.')
+        print('Data successfully downloaded.')
     else: 
         _spam = ''.join([date, '_', spam])
         _ham = ''.join([date, '_', ham])
