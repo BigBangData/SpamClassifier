@@ -73,3 +73,45 @@ def get_data_if_needed(spam, ham, date):
         _spam = ''.join([date, '_', spam])
         _ham = ''.join([date, '_', ham])
         get_data(_spam, _ham, date)
+        
+def extract_emails(_path, _names):
+
+    def parse_emails(filename):
+        
+        import os
+        import email
+        import email.policy
+        
+        with open(os.path.join(_path, filename), 'rb') as fp:
+            return(email.parser.BytesParser(policy=email.policy.default).parse(fp))
+        
+    return([parse_emails(filename=name) for name in _names])
+
+def print_header(email):
+    print('To: {}'.format(email['to']))
+    print('From: {}'.format(email['from']))
+    print('Subject: {}'.format(email['subject']))
+    print('Date: {}'.format(email['Date']))
+    print('Content-Type: {}'.format(email['Content-Type']))
+
+def structures_counter(emails):
+ 
+    def get_structure(email):
+
+        payload = email.get_payload()
+
+        if isinstance(payload, list):
+            return "multipart({})".format(" | ".join([
+                get_structure(sub_email)
+                for sub_email in payload
+            ]))
+        else:
+            return email.get_content_type()
+        
+    from collections import Counter  
+    
+    structures = Counter()
+    for email in emails:
+        structure = get_structure(email)
+        structures[structure] += 1
+    return structures
