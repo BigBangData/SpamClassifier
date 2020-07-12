@@ -87,13 +87,6 @@ def extract_emails(_path, _names):
         
     return([parse_emails(filename=name) for name in _names])
 
-def print_header(email):
-    print('To: {}'.format(email['to']))
-    print('From: {}'.format(email['from']))
-    print('Subject: {}'.format(email['subject']))
-    print('Date: {}'.format(email['Date']))
-    print('Content-Type: {}'.format(email['Content-Type']))
-
 def structures_counter(emails):
  
     def get_structure(email):
