@@ -1,4 +1,3 @@
-        
 import os
 import re
 import nltk
@@ -9,6 +8,7 @@ import urlextract
 import numpy as np
 import email.policy
 import datetime as dt
+
 from html import unescape
 from collections import Counter
 from nltk.corpus import stopwords 
@@ -104,7 +104,7 @@ def html_to_plaintext(html):
     
     return unescape(text)
 
-def email_to_text(email):
+def email_to_text(email):    
     html = None
     for part in email.walk():
         ctype = part.get_content_type()
@@ -120,8 +120,99 @@ def email_to_text(email):
             html = content
     if html:
         return html_to_plaintext(html)
+
     
-# inherited scikit.learn classes for study
+class EmailToWordCounterTransformer_revised(BaseEstimator, TransformerMixin):
+
+    def __init__(self, remove_stopwords, strip_headers=True, lower_case=True, remove_punctuation=True,
+                 replace_urls=True, replace_numbers=True, stemming=True):
+        self.remove_stopwords = remove_stopwords
+        self.strip_headers = strip_headers
+        self.lower_case = lower_case
+        self.remove_punctuation = remove_punctuation
+        self.replace_urls = replace_urls
+        self.replace_numbers = replace_numbers
+        self.stemming = stemming
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X, y=None):        
+        X_transformed = []
+        
+        for email in X:
+            text = email_to_text(email) or ""
+            
+            if self.lower_case:
+                text = text.lower()
+                
+            if self.replace_urls:
+                url_extractor = urlextract.URLExtract()
+                urls = list(set(url_extractor.find_urls(text)))
+                urls.sort(key=lambda url: len(url), reverse=True)
+                for url in urls:
+                    text = text.replace(url, " URL ")
+                    
+            if self.replace_numbers:
+                text = re.sub(r'\d+(?:\.\d*(?:[eE]\d+))?', 'NUMBER', text)
+                
+            if self.remove_punctuation:
+                text = re.sub(r'\W+', ' ', text, flags=re.M)
+            
+            if self.remove_stopwords:
+                stop_words = set(stopwords.words("english"))
+                word_tokens = word_tokenize(text)
+                text = [word for word in word_tokens if not word in stop_words]
+                word_counts = Counter(text)
+            else: 
+                word_counts = Counter(text.split())
+    
+            if self.stemming:        
+                stemmer = nltk.PorterStemmer()
+                stemmed_word_counts = Counter()
+                for word, count in word_counts.items():
+                    stemmed_word = stemmer.stem(word)                        
+                    stemmed_word_counts[stemmed_word] += count
+                word_counts = stemmed_word_counts       
+            X_transformed.append(word_counts)
+            
+        return np.array(X_transformed)
+
+
+class WordCounterToVectorTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, vocabulary_size=1000):
+        self.vocabulary_size = vocabulary_size
+        
+    def fit(self, X, y=None):
+        total_count = Counter()
+        for word_count in X:
+            for word, count in word_count.items():
+                total_count[word] += min(count, 10)
+        most_common = total_count.most_common()[:self.vocabulary_size]
+        self.most_common_ = most_common
+        self.vocabulary_ = {word: index + 1 for index, (word, count) in enumerate(most_common)}
+        return self
+    
+    def transform(self, X, y=None):
+        rows = []
+        cols = []
+        data = []
+        for row, word_count in enumerate(X):
+            for word, count in word_count.items():
+                rows.append(row)
+                cols.append(self.vocabulary_.get(word, 0))
+                data.append(count)
+        return csr_matrix((data, (rows, cols)), shape=(len(X), self.vocabulary_size + 1))
+    
+# -------------------------------------------------------------------------------------------------------------
+# Studying scikit-learn TransformerMixin and BaseEstimator classes
+
+# Adding TransformerMixin as a base class in our custom transformer ensures that all we need to do is write 
+# our fit and transform methods and we get fit_transform for free.
+
+# Adding BaseEstimator as a base class ensures we get get_params() and set_params() for free. 
+# These are useful in hyperparameter tuning.
+
 class TransformerMixin:
     """Mixin class for all transformers in scikit-learn."""
 
@@ -458,92 +549,3 @@ class BaseEstimator:
         if get_config()["display"] == 'diagram':
             output["text/html"] = estimator_html_repr(self)
         return output
-
-# Inheriting from TransformerMixin ensures that all we need to do is write our fit and transform methods and we get fit_transform for free.
-# Inheriting from BaseEstimator ensures we get get_params and set_params for free. Since the fit method doesn’t need to do anything but 
-# return the object itself, all we really need to do after inheriting from these classes, is define the transform method for our custom 
-# transformer and we get a fully functional custom transformer that can be seamlessly integrated with a scikit-learn pipeline.
-    
-class EmailToWordCounterTransformer_revised(BaseEstimator, TransformerMixin):
-
-    def __init__(self, remove_stopwords, strip_headers=True, lower_case=True, remove_punctuation=True,
-                 replace_urls=True, replace_numbers=True, stemming=True):
-        self.remove_stopwords = remove_stopwords
-        self.strip_headers = strip_headers
-        self.lower_case = lower_case
-        self.remove_punctuation = remove_punctuation
-        self.replace_urls = replace_urls
-        self.replace_numbers = replace_numbers
-        self.stemming = stemming
-    
-    def fit(self, X, y=None):
-        return self
-    
-    def transform(self, X, y=None):
-        X_transformed = []
-        
-        for email in X:
-            text = email_to_text(email) or ""
-            
-            if self.lower_case:
-                text = text.lower()
-                
-            if self.replace_urls:
-                url_extractor = urlextract.URLExtract()
-                urls = list(set(url_extractor.find_urls(text)))
-                urls.sort(key=lambda url: len(url), reverse=True)
-                for url in urls:
-                    text = text.replace(url, " URL ")
-                    
-            if self.replace_numbers:
-                text = re.sub(r'\d+(?:\.\d*(?:[eE]\d+))?', 'NUMBER', text)
-                
-            if self.remove_punctuation:
-                text = re.sub(r'\W+', ' ', text, flags=re.M)
-            
-            if self.remove_stopwords:
-                stop_words = set(stopwords.words("english"))
-                word_tokens = word_tokenize(text)
-                text = [word for word in word_tokens if not word in stop_words]
-                word_counts = Counter(text)
-            else: 
-                word_counts = Counter(text.split())
-    
-            if self.stemming:        
-                stemmer = nltk.PorterStemmer()
-                stemmed_word_counts = Counter()
-                for word, count in word_counts.items():
-                    stemmed_word = stemmer.stem(word)                        
-                    stemmed_word_counts[stemmed_word] += count
-                word_counts = stemmed_word_counts       
-            X_transformed.append(word_counts)
-            
-        return np.array(X_transformed)
-
-
-class WordCounterToVectorTransformer(BaseEstimator, TransformerMixin):
-    
-    def __init__(self, vocabulary_size=1000):
-        self.vocabulary_size = vocabulary_size
-        
-    def fit(self, X, y=None):
-        total_count = Counter()
-        for word_count in X:
-            for word, count in word_count.items():
-                total_count[word] += min(count, 10)
-        most_common = total_count.most_common()[:self.vocabulary_size]
-        self.most_common_ = most_common
-        self.vocabulary_ = {word: index + 1 for index, (word, count) in enumerate(most_common)}
-        return self
-    
-    def transform(self, X, y=None):     
-        rows = []
-        cols = []
-        data = []    
-        for row, word_count in enumerate(X):
-            for word, count in word_count.items():
-                rows.append(row)
-                cols.append(self.vocabulary_.get(word, 0))
-                data.append(count)
-                
-        return csr_matrix((data, (rows, cols)), shape=(len(X), self.vocabulary_size + 1))
