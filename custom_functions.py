@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import nltk
 import email
 import tarfile
@@ -7,8 +8,9 @@ import requests
 import urlextract 
 import numpy as np
 import email.policy
+import scipy.sparse
 import datetime as dt
-
+    
 from html import unescape
 from collections import Counter
 from nltk.corpus import stopwords 
@@ -203,6 +205,93 @@ class WordCounterToVectorTransformer(BaseEstimator, TransformerMixin):
                 cols.append(self.vocabulary_.get(word, 0))
                 data.append(count)
         return csr_matrix((data, (rows, cols)), shape=(len(X), self.vocabulary_size + 1))
+    
+    
+class WordCounterToVectorTransformer_plusvocab(BaseEstimator, TransformerMixin):
+    def __init__(self, vocabulary_size=1000):
+        self.vocabulary_size = vocabulary_size
+        
+    def fit(self, X, y=None):
+        total_count = Counter()
+        for word_count in X:
+            for word, count in word_count.items():
+                total_count[word] += min(count, 10)
+        most_common = total_count.most_common()[:self.vocabulary_size]
+        self.most_common_ = most_common
+        self.vocabulary_ = {word: index + 1 for index, (word, count) in enumerate(most_common)}
+        
+        return self
+    
+    def transform(self, X, y=None):
+        rows = []
+        cols = []
+        data = []
+        for row, word_count in enumerate(X):
+            for word, count in word_count.items():
+                rows.append(row)
+                cols.append(self.vocabulary_.get(word, 0))
+                data.append(count)
+      
+        # CHANGE - needs vocabulary returned to save and run with test set
+        return (self.vocabulary_, 
+                csr_matrix((data, (rows, cols)), shape=(len(X), self.vocabulary_size + 1)))
+    
+
+def load_processed_X_train(vocab_name, X_train_name, preprocess_pipeline, X_train):
+    
+    # setup directory and file paths
+    path = 'processed_data'
+    if not os.path.exists(path):
+        os.mkdir(path)       
+    vocab_path = os.path.join(path, ''.join([vocab_name, '.json']))
+    matrix_path = os.path.join(path, ''.join([X_train_name, '.npz']))
+    
+    # load vocabulary and matrix if exist
+    try:
+        with open(vocab_path, 'r') as fp:
+            vocabulary_ = json.load(fp)
+        print('Loading vocabulary.')
+    except FileNotFoundError as e:  
+        print('Json file not found.')
+        pass
+    try:
+        X_train_transformed = scipy.sparse.load_npz(matrix_path)
+        print('Loading sparse matrix.')
+    except FileNotFoundError as e:  
+        print('Sparse matrix not found.')
+        pass
+    
+    if 'vocabulary_' in locals() and 'X_train_transformed' in locals():
+        print('Processed data loaded.')
+        return(vocabulary_, X_train_transformed)
+    else:
+        pass
+    
+    # if not, process data
+    try:
+        print('Processing data...')  
+        vocabulary_, X_train_transformed = preprocess_pipeline.fit_transform(X_train)
+        print('Data processed.')    
+    except:
+        print('Processing error.')
+        pass
+    
+    # save processed data
+    try:
+        with open(vocab_path, 'w') as fp:
+            json.dump(vocabulary_, fp, indent=4)
+        print('Saving vocabulary...')
+    except:
+        print('Error saving vocabulary_...')
+        pass
+    try:
+        scipy.sparse.save_npz(matrix_path, X_train_transformed)
+        print('Saving sparse matrix...')
+    except:
+        print('Error saving matrix...')
+    
+    print('Processed data loaded and saved.')   
+    return(vocabulary_, X_train_transformed)  
     
 # -------------------------------------------------------------------------------------------------------------
 # Studying scikit-learn TransformerMixin and BaseEstimator classes
