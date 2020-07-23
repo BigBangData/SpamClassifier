@@ -1,14 +1,15 @@
 # README
 
-TODO:
-1. explore technical details (ex. sparse matrix)
-
-Saving the trained data as a pickled file or as a sparse matrix (scipy.sparse) makes it so that we lose the attributes of the trained data (self.vocabulary_ from WordCounterToVectorTransformer). Pickle has security issues and negative reviews overall, so will look into other methods (JSON...).
-
-2. explore use case - is higher precision but lower recall preferred?
-3. why removing stop words increases precision but lowers recall? Is this always so?
-4. test other datasets
-5. invite collaborators
-6. make a nice presentation
-
-random thought - recreate a classifier in R!
+TODOs:
+- write an actual README not a list of TODOs
+- figure out a way to save preprocessed metadata
+- study other ways to improve preprocessing
+- train various models
+- study models 
+- recreate portions of or entire project in R: does R make one think differently about this? Are there performance issues?
+- explore use case, is higher precision but lower recall always preferred
+- why removing stop words increases precision but lowers recall? Is this always so?
+- test other datasets
+- test other use cases - can a great-performing classifier for spam also classify novels vs emails?
+- invite collaborators
+- make a nice presentation - center on a topic
